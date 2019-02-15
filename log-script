@@ -1,0 +1,31 @@
+datapath = 'C:\Users\valeria.peviani\Dropbox\VALERIA SALVATAGGI\PhD 27 feb\Space_representations\space_repr\DATA\pilot2\eyetrack_files\';
+
+subID = '02AN';
+
+addpath('C:\Users\valeria.peviani\Documents\MATLAB\fieldtrip-20180225');
+addpath('C:\Users\valeria.peviani\Dropbox\VALERIA SALVATAGGI\PhD 27 feb\Space_representations\space_repr\DATA\pilot\eyetracker\');
+
+ft_defaults;
+
+events = {'Adapt'; 'Condit'; 'LOOP'; 'test'; 'adaptstim'};   %specify types of events
+groupevents = {'t', 'a', 'other'};
+limits = [-1 1 -0.5 0.5 -1 1]; % define segmentation limits for each grouped event (e.g. t limits are -1 1)
+conditions = [32 36 40 44 48 52 56];   % specify conditions
+labelsorig = {'1', '2', '3', '4'};  %original labels of the eyetracker channels
+%Channel 1 represents time, channel 2 is the horizontal x-coordinate, 
+% channel 3 is the vertical y-coordinate and channel 4 is the pupil dilation.
+labelsnew = {'EYE_TIMESTAMP', 'EYE_HORIZONTAL', 'EYE_VERTICAL', 'EYE_DIAMETER'}; %how I want the channels to be relabeled
+
+% screen parameters 
+widthscr = 1920; %in pxls
+heightscr = 1080;
+pxpercm = 1920/53; % pixels/cm width
+ppd_mpi = 34.7787; %pixel per visual degree (with distance from screen of 55cm)
+center = [widthscr/2 heightscr/2];
+
+% define the deviation of the fixation dot from the center of the screen 
+devfixsup = -104.336; %minus because y=0 is the uppest point of the screen and my fixation dot was higher than the center
+devfixlat = 0;
+
+% define the tolerated deviation from the fixation dot 
+shiftaccepted = 1; %in degrees
