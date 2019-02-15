@@ -1,0 +1,34 @@
+%% function to define trl for eyetracker data
+
+function [trl] = eye_trialfun_content(limits, frq, value, sample); % paramsfileECOG, trig, SEEGtriggers, Trl)
+
+
+%% define trial limits in terms of samples
+
+pret = round(limits(1)*frq);
+postt = round(limits(2)*frq);
+prea = round(limits(3)*frq);
+posta = round(limits(4)*frq);
+preother = round(limits(5)*frq);
+postother = round(limits(6)*frq);
+
+%% create trl (default info trlbegin, trlend, offset + other info) depending on the trigger
+for ii = 1: length(value);
+    if value(ii) == 1 | value(ii) == 2 | value(ii) == 3;
+        trlbegin = sample(ii) + preother;
+        trlend = sample(ii) + postother;
+        offset = preother;
+        trl(ii, :) = [trlbegin trlend offset]
+    elseif value(ii) == 4 ;
+        trlbegin = sample(ii) + pret;
+        trlend = sample(ii) + postt;
+        offset = pret;
+        trl(ii, :) = [trlbegin trlend offset]
+    elseif value(ii) == 5 ;
+        trlbegin = sample(ii) + prea;
+        trlend = sample(ii) + posta;
+        offset = prea;
+        trl(ii, :) = [trlbegin trlend offset] ;
+end 
+   
+end 
