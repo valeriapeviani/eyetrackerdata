@@ -1,0 +1,154 @@
+%%
+% This code has been created to preprocess the eyetracker data from a block-design experiment with 7 blocks (7 conditions). 
+% The code allows to segment the data given the events (using fieldtrip toolbox) and to compute the fixation coordinates 
+% as well as the deviation from the fixation dot, for each timepoint and averaged over each trial. 
+
+% refer to the relative log-script to enter the necessary information
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% load data
+
+for cc = 1:length(conditions);
+    cfg = [];
+    cfg.dataset = [datapath subID int2str(conditions(cc)) '.asc']
+    cfg.montage.tra      = eye(4);
+    cfg.montage.labelorg = labelsorig;
+    cfg.montage.labelnew = labelsnew;
+    eval(sprintf('data_eye_%d = ft_preprocessing(cfg);', conditions(cc)));
+
+    eval(sprintf('hdr_%d = ft_read_header([datapath subID int2str(conditions(cc)) ''.asc'']);', conditions(cc)));
+    %hdr.orig.msg;   % here I can find all the msgs 
+end
+
+%% extract the timestamp and label of each relevant msg, to build the event
+% % structure later 
+
+for cc = 1:length(conditions);
+    pos = 1;
+    eval(sprintf('lengthdr = length(hdr_%d.orig.msg);', conditions(cc) ))
+for ii = 1:lengthdr
+    for iii = 1:length(events);
+        if eval(sprintf('cell2mat(strfind(hdr_%d.orig.msg(ii),events{iii})) > 0; ', conditions(cc)));
+            eval(sprintf('all_%d(pos,:) = hdr_%d.orig.msg(ii); ', conditions(cc), conditions(cc)));
+            eval(sprintf('timestamp_%d(pos,:) = (str2num(all_%d{pos}(5:11))); ', conditions(cc), conditions(cc)));   %select the timestamp
+            eval(sprintf('label_%d{pos,:} = all_%d{pos}(12:end);', conditions(cc), conditions(cc)));
+            eval(sprintf('sample_%d(pos,:) = (timestamp_%d(pos)-hdr_%d.FirstTimeStamp)/hdr_%d.TimeStampPerSample + 1;', conditions(cc), conditions(cc), conditions(cc), conditions(cc)));
+            if eval(sprintf('strfind(label_%d{pos}, events{iii}) > 0 ;', conditions(cc)));                
+                eval(sprintf('value_%d(pos,:) =  iii;', conditions(cc)));
+            end 
+            pos = pos+1;
+        end
+    end 
+end
+end
+
+%%
+offset = repmat(0, length(sample_32), 1);   % offset and duration are the same for all the conditions
+duration = repmat(1, length(sample_32), 1);
+
+%% events 
+% create event structure 
+for cc = 1:length(conditions);
+eval(sprintf('eventeye_%d = ft_read_event([datapath subID int2str(conditions(cc)) ''.asc'']);', conditions(cc)));
+
+% fill the event structure with the data gained from the loop above 
+eval(sprintf('samplec = mat2cell(sample_%d, repmat(1, length(sample_%d),1),1);',conditions(cc), conditions(cc)));   % to be put in the structure, the matrices should be transformed into cell arrays
+eval(sprintf('timestampc = mat2cell(sample_%d, repmat(1, length(sample_%d),1),1);', conditions(cc), conditions(cc)));
+eval(sprintf('valuec = mat2cell(value_%d, repmat(1, length(sample_%d),1),1);', conditions(cc), conditions(cc)));
+offsetc = mat2cell(offset, repmat(1, length(sample_32),1),1);
+durationc = mat2cell(duration, repmat(1, length(sample_32),1),1);
+
+eval(sprintf('event_%d = struct(''type'',label_%d, ''sample'', samplec, ''timestamp'',timestampc, ''value'',valuec, ''offset'',offsetc, ''duration'', durationc);', conditions(cc), conditions(cc) )) %length(eventlist.sample)) 
+clear samplec timestampc valuec
+end 
+
+%% checking plots 
+% plot the triggers basing on their value  
+for cc = 1:length(conditions);
+    % check triggers for each conditions
+    figure
+    eval(sprintf('plot([event_%d.sample]./data_eye_%d.hdr.Fs, [event_%d.value], ''.'')', conditions(cc), conditions(cc), conditions(cc)));
+    title('TRIGGERS')
+    xlabel('time (s)');  %1 condition, 2 adaptor distances, 3 = loop, 4=test trials, 5 = training trials
+    ylabel('trigger value');
+    ylim([0 length(events)+1]);
+
+    % browse the entire trial with or without the events 
+    cfg = [];
+    cfg.viewmode       = 'vertical';
+    cfg.ylim    = [-200 200] % 'maxmin'; %(default = 'maxabs')
+    cfg.preproc.demean = 'yes';
+    eval(sprintf('cfg.event = event_%d;', conditions(cc)));   % <-- comment if you don't want to plot the events
+    eval(sprintf('cfg.channel = {data_eye_%d.label{2} data_eye_%d.label{3}};', conditions(cc), conditions(cc)));
+    eval(sprintf('ft_databrowser(cfg, data_eye_%d);', conditions(cc)));
+end 
+
+%% segment the signal in trials 
+% define trl
+frq = data_eye_32.hdr.Fs;
+
+for cc = 1:length(conditions);
+    eval(sprintf('trl_%d = eye_trialfun_content(limits, frq, value_%d, sample_%d);', conditions(cc), conditions(cc), conditions(cc)));
+
+    % define trials
+    cfg = [];
+    eval(sprintf('cfg.trl = trl_%d;', conditions(cc)));
+    eval(sprintf('data_eye_seg_%d = ft_redefinetrial(cfg, data_eye_%d);', conditions(cc), conditions(cc)));
+end 
+
+%% analyze data basing on the position of the fixation dot 
+
+
+fixpos = [center(1)+devfixlat center(2)+devfixsup];
+
+% compute the mean fixation for each trial 
+for cc = 1:length(conditions);
+pos = 1;
+pos1 = 1;
+eval(sprintf('lenlab = length(label_%d);', conditions(cc)));
+for ii=1:lenlab
+    if eval(sprintf('strfind(label_%d{ii}, ''testtrialN'') >0;', conditions(cc)));
+        % each row is a trial, each column is a timepoint
+        eval(sprintf('testH_%d(pos,:) = data_eye_seg_%d.trial{ii}(2,:);', conditions(cc), conditions(cc)));
+        eval(sprintf('testV_%d(pos,:) = data_eye_seg_%d.trial{ii}(3,:);', conditions(cc), conditions(cc)));
+        %compute the mean of the fixation for each trial across time
+        eval(sprintf('meantestH_%d(pos, :) = mean(testH_%d(pos,:));', conditions(cc), conditions(cc)));
+        eval(sprintf('meantestV_%d(pos, :) = mean(testV_%d(pos,:));', conditions(cc), conditions(cc)));
+        pos = pos+1; 
+    elseif eval(sprintf('strfind(label_%d{ii}, ''adaptstimN'') >0;', conditions(cc)));
+        % each row is a trial, each column is a timepoint
+        eval(sprintf('adapH_%d(pos1,:) = data_eye_seg_%d.trial{ii}(2,:);', conditions(cc), conditions(cc)));
+        eval(sprintf('adapV_%d(pos1,:) = data_eye_seg_%d.trial{ii}(3,:);', conditions(cc), conditions(cc)));
+        %compute the mean of the fixation for each trial across time 
+        eval(sprintf('meanadapH_%d(pos1, :) = mean(adapH_%d(pos1,:));', conditions(cc), conditions(cc)));
+        eval(sprintf('meanadapV_%d(pos1, :) = mean(adapV_%d(pos1,:));', conditions(cc), conditions(cc)));
+        pos1 = pos1+1;
+    end 
+    
+end 
+end 
+
+
+%% compute number of timepoints in which the subject was fixating the center 
+
+
+for cc = 1:length(conditions);
+eval(sprintf('timepoints = size(adapH_%d, 2);', conditions(cc)));
+eval(sprintf('ntrials = size(adapH_%d, 1);', conditions(cc)));
+
+eval(sprintf('fixtimepoints_%d =0;', conditions(cc)));
+
+for ii = 1:timepoints
+    for iii = 1:ntrials
+        eval(sprintf('adapHgap_%d(iii,ii) = adapH_%d(iii,ii) - fixpos(1);', conditions(cc), conditions(cc)));
+        eval(sprintf('adapVgap_%d(iii,ii) = adapV_%d(iii,ii) - fixpos(2);', conditions(cc), conditions(cc)));
+        if eval(sprintf('adapHgap_%d(iii,ii) <= shiftaccepted*ppd_mpi & adapVgap_%d(iii,ii) <= shiftaccepted*ppd_mpi', conditions(cc), conditions(cc)));
+            eval(sprintf('fixtimepoints_%d = fixtimepoints_%d+1;', conditions(cc), conditions(cc)));
+        end 
+    end 
+end
+end
+
+
+tottimepoint = timepoints*ntrials
+
