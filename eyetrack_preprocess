@@ -22,6 +22,7 @@ end
 
 %% extract the timestamp and label of each relevant msg, to build the event
 % % structure later 
+spaceExpr = '\s'; % this is needed to find the spaces in the eyetracker logfile 
 
 for cc = 1:length(conditions);
     pos = 1;
@@ -30,13 +31,19 @@ for ii = 1:lengthdr
     for iii = 1:length(events);
         if eval(sprintf('cell2mat(strfind(hdr_%d.orig.msg(ii),events{iii})) > 0; ', conditions(cc)));
             eval(sprintf('all_%d(pos,:) = hdr_%d.orig.msg(ii); ', conditions(cc), conditions(cc)));
-            eval(sprintf('timestamp_%d(pos,:) = (str2num(all_%d{pos}(5:11))); ', conditions(cc), conditions(cc)));   %select the timestamp
-            eval(sprintf('label_%d{pos,:} = all_%d{pos}(12:end);', conditions(cc), conditions(cc)));
-            eval(sprintf('sample_%d(pos,:) = (timestamp_%d(pos)-hdr_%d.FirstTimeStamp)/hdr_%d.TimeStampPerSample + 1;', conditions(cc), conditions(cc), conditions(cc), conditions(cc)));
+            eval(sprintf('spaceStartIndex = regexp(all_%d(pos,:),spaceExpr);', conditions(cc)));
+            eval(sprintf('timestamp_%d(pos,:) = (str2num(all_%d{pos}(spaceStartIndex{1}(1)+1:spaceStartIndex{1}(2)-1))); ', conditions(cc), conditions(cc)));   %select the timestamp
+            eval(sprintf('label_%d{pos,:} = all_%d{pos}(spaceStartIndex{1}(3)+1:end);', conditions(cc), conditions(cc)));
+            if eval(sprintf('timestamp_%d(pos) > hdr_%d.FirstTimeStamp', conditions(cc), conditions(cc)));
+                eval(sprintf('sample_%d(pos,:) = (timestamp_%d(pos)-hdr_%d.FirstTimeStamp)/hdr_%d.TimeStampPerSample + 1;', conditions(cc), conditions(cc), conditions(cc), conditions(cc)));
+            else
+                problem = 1;
+            end 
             if eval(sprintf('strfind(label_%d{pos}, events{iii}) > 0 ;', conditions(cc)));                
                 eval(sprintf('value_%d(pos,:) =  iii;', conditions(cc)));
             end 
             pos = pos+1;
+            clear spaceStartIndex
         end
     end 
 end
@@ -65,20 +72,13 @@ end
 %% checking plots 
 % plot the triggers basing on their value  
 for cc = 1:length(conditions);
-    % check triggers for each conditions
-    figure
-    eval(sprintf('plot([event_%d.sample]./data_eye_%d.hdr.Fs, [event_%d.value], ''.'')', conditions(cc), conditions(cc), conditions(cc)));
-    title('TRIGGERS')
-    xlabel('time (s)');  %1 condition, 2 adaptor distances, 3 = loop, 4=test trials, 5 = training trials
-    ylabel('trigger value');
-    ylim([0 length(events)+1]);
 
     % browse the entire trial with or without the events 
     cfg = [];
     cfg.viewmode       = 'vertical';
     cfg.ylim    = [-200 200] % 'maxmin'; %(default = 'maxabs')
     cfg.preproc.demean = 'yes';
-    eval(sprintf('cfg.event = event_%d;', conditions(cc)));   % <-- comment if you don't want to plot the events
+    %eval(sprintf('cfg.event = event_%d;', conditions(cc)));   % <-- comment if you don't want to plot the events
     eval(sprintf('cfg.channel = {data_eye_%d.label{2} data_eye_%d.label{3}};', conditions(cc), conditions(cc)));
     eval(sprintf('ft_databrowser(cfg, data_eye_%d);', conditions(cc)));
 end 
@@ -98,10 +98,7 @@ end
 
 %% analyze data basing on the position of the fixation dot 
 
-
-fixpos = [center(1)+devfixlat center(2)+devfixsup];
-
-% compute the mean fixation for each trial 
+%% compute the mean fixation for each trial 
 for cc = 1:length(conditions);
 pos = 1;
 pos1 = 1;
@@ -151,4 +148,3 @@ end
 
 
 tottimepoint = timepoints*ntrials
-
