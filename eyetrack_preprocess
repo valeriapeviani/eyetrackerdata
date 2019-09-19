@@ -97,6 +97,7 @@ for cc = 1:length(conditions);
 end 
 
 %% analyze data basing on the position of the fixation dot 
+fixpos = [center(1)+devfixlat center(2)+devfixsup];
 
 %% compute the mean fixation for each trial 
 for cc = 1:length(conditions);
